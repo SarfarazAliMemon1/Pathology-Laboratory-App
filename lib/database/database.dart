@@ -21,11 +21,29 @@ LazyDatabase _openConnection() {
 }
 
 @DriftDatabase(tables: [Patients, Tests, TestComponents, LabOrders, OrderTests, Expenses])
-class AppDatabase extends _ {   // <-- FIXED: extends _
+class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
+
+  /// Constructor for tests, allowing an in-memory or custom executor.
+  AppDatabase.forTesting(super.executor);
 
   @override
   int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // Run stepwise upgrades so existing on-disk databases are migrated
+          // safely. Add a new `if (from <= N)` block each time schemaVersion
+          // is bumped, creating/altering only what that version introduced.
+        },
+        beforeOpen: (details) async {
+          // Enforce foreign-key constraints on every connection (off by
+          // default in SQLite), so related rows stay consistent.
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
+      );
 
   // Patients
   Future<int> insertPatient(PatientsCompanion patient) =>
@@ -78,7 +96,7 @@ class AppDatabase extends _ {   // <-- FIXED: extends _
   Stream<List<Expense>> watchAllExpenses() => select(expenses).watch();
   Future<double> getTotalExpenses() async {
     final list = await select(expenses).get();
-    return list.fold(0.0, (sum, e) => sum + e.amount);
+    return list.fold<double>(0.0, (sum, e) => sum + e.amount);
   }
 
   // Statistics
@@ -98,6 +116,6 @@ class AppDatabase extends _ {   // <-- FIXED: extends _
       ..where((t) => t.orderDate.isBetweenValues(startOfDay.millisecondsSinceEpoch, endOfDay.millisecondsSinceEpoch))
       ..where((t) => t.paymentStatus.equals('paid'));
     final result = await query.get();
-    return result.fold(0.0, (sum, order) => sum + order.totalAmount);
+    return result.fold<double>(0.0, (sum, order) => sum + order.totalAmount);
   }
 }

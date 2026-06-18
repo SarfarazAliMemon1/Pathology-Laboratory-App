@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/test_catalog_screen.dart';
@@ -15,7 +16,7 @@ import '../models/expense_model.dart';
 import '../models/data_notifier.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatefulWidget {
@@ -244,14 +245,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            // Grid with childAspectRatio: 2.0
-            GridView.count(
+            // Grid with fixed card height regardless of window width
+            GridView(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: crossAxisCount,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: 2.0,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 150,
+              ),
               children: [
                 _DashboardCard(
                   title: 'New Order',
@@ -364,81 +367,113 @@ class _DashboardCardState extends State<_DashboardCard> {
   @override
   Widget build(BuildContext context) {
     final textColor = Theme.of(context).colorScheme.onSurface;
+    final mutedColor = widget.isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+
+    // Respect the OS "reduce motion" accessibility setting (Apple/Android).
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final motionDuration = reduceMotion ? Duration.zero : const Duration(milliseconds: 220);
+    // iOS-style easing: gentle ease-out for a soft, settled landing.
+    const motionCurve = Curves.easeOutCubic;
+    final scale = (_isHovered && !reduceMotion) ? 1.03 : 1.0;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: widget.isDark ? Colors.grey.shade900 : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: _isHovered
-              ? [BoxShadow(color: widget.color.withOpacity(0.5), blurRadius: 12, spreadRadius: 2, offset: const Offset(0, 4))]
-              : [BoxShadow(color: widget.color.withOpacity(0.2), blurRadius: 6, spreadRadius: 1, offset: const Offset(0, 2))],
-          border: _isHovered ? Border.all(color: widget.color.withOpacity(0.5), width: 1.2) : null,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () {
-              if (widget.route != null) {
-                Navigator.pushNamed(context, widget.route!).then((_) {
-                  if (widget.onAfterTap != null) {
-                    widget.onAfterTap!();
-                  }
-                  DataNotifier.notify();
-                });
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Coming Soon!'), duration: Duration(seconds: 1)),
-                );
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Icon at top
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: widget.color.withOpacity(_isHovered ? 0.25 : 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(widget.icon, color: widget.color, size: _isHovered ? 20 : 16),
-                  ),
-                  const Spacer(), // pushes text to bottom
-                  // Text at bottom
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (widget.value != null)
-                        Text(
-                          widget.value!,
-                          style: GoogleFonts.poppins(
-                            fontSize: _isHovered ? 16 : 14,
-                            fontWeight: FontWeight.bold,
-                            color: textColor,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      Text(
-                        widget.title,
-                        style: GoogleFonts.poppins(
-                          fontSize: 9,
-                          color: Colors.grey.shade500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+      // Scale is a GPU-friendly transform: the "lift" never reflows the grid.
+      child: AnimatedScale(
+        scale: scale,
+        duration: motionDuration,
+        curve: motionCurve,
+        child: AnimatedContainer(
+          duration: motionDuration,
+          curve: motionCurve,
+          decoration: BoxDecoration(
+            color: widget.isDark ? Colors.grey.shade900 : Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: _isHovered
+                ? [BoxShadow(color: widget.color.withOpacity(0.35), blurRadius: 20, spreadRadius: 1, offset: const Offset(0, 8))]
+                : [BoxShadow(color: widget.color.withOpacity(0.15), blurRadius: 10, spreadRadius: 0, offset: const Offset(0, 3))],
+            border: Border.all(
+              color: _isHovered ? widget.color.withOpacity(0.45) : Colors.transparent,
+              width: 1.2,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () {
+                if (widget.route != null) {
+                  Navigator.pushNamed(context, widget.route!).then((_) {
+                    if (widget.onAfterTap != null) {
+                      widget.onAfterTap!();
+                    }
+                    DataNotifier.notify();
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Coming Soon!'), duration: Duration(seconds: 1)),
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon at top
+                    AnimatedContainer(
+                      duration: motionDuration,
+                      curve: motionCurve,
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: widget.color.withOpacity(_isHovered ? 0.22 : 0.12),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
-                ],
+                      child: Icon(widget.icon, color: widget.color, size: 22),
+                    ),
+                    const Spacer(), // pushes text to bottom
+                    // Text at bottom
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.value != null)
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              widget.value!,
+                              style: GoogleFonts.poppins(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                                color: textColor,
+                                letterSpacing: -0.5,
+                                height: 1.1,
+                              ),
+                              maxLines: 1,
+                              softWrap: false,
+                            ),
+                          ),
+                        const SizedBox(height: 3),
+                        Flexible(
+                          child: Text(
+                            widget.title,
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: mutedColor,
+                              height: 1.15,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

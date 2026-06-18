@@ -66,10 +66,11 @@ class _TestCatalogScreenState extends ConsumerState<TestCatalogScreen> {
           ElevatedButton(
             onPressed: () => _checkPassword(ctx),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(ctx).brightness == Brightness.dark ? Colors.indigo.shade300 : const Color(0xFF6366F1),
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Unlock'),
+            child: const Text('Unlock', style: TextStyle(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
